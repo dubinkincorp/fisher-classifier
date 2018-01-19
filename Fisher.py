@@ -9,78 +9,73 @@ class Fisher:
         self.group1Size = group1Size
         self.group2Size = group2Size
         self.covMatrix = np.matrix([[1, 0.2], [0.2, 1]])
+        self.mu1 = np.matrix([3, 3])
+        self.mu2 = np.matrix([8, 8])
 
+    """Нормально распределенная группа"""
     def generateGroup(self, groupSize):
         self.groupSize = groupSize
         gr1 = np.random.normal(0, 1, groupSize)
         gr2 = np.random.normal(0, 1, groupSize)
         gr = np.vstack((gr1, gr2))
-        grT = np.transpose(gr)
-        return grT
+        return gr
 
-    def generateMeanVector(self, mu1, mu2):
-        self.mu1 = mu1
-        self.mu2 = mu2
-        mu = np.matrix([mu1, mu2])
-        return mu
-
-    def transposeMeanVector(self, mu):
-        self.mu = mu
-        muT = np.transpose(mu)
-        return muT
-
+    """Разложение Холецкого ковариационной матрицы"""
     @property
     def cholCovariance(self):
-        chol = np.linalg.cholesky(self.covMatrix)
+        matrix = np.linalg.inv(self.covMatrix)
+        chol = np.linalg.cholesky(matrix)
         return chol
 
-    def calculateInvertibleMatrix(self, matrix):
-        self.matrix = matrix
-        invertibleMatrix = np.linalg.inv(matrix)
-        return invertibleMatrix
+    """Преобрзованная с учетом центроида мю нормально распределенная группа"""
+    def transformGroup(self, group, mu):
+        group = self.cholCovariance*group + mu
+        return group
 
+    """Вектор из группы для расчета дискриминантной функции"""
     def getVector(self, group, n):
         self.group = group
         self.n = n
-        vec = np.matrix([group[n].tolist()[0][0], group[n].tolist()[0][1]])
-        vecT = np.transpose(vec)
-        return vecT
+        vec = [group[0].tolist()[0][n], group[1].tolist()[0][n]]
+        return vec
 
-    def discriminantFunction(self, mu, muT, matrix, x):
-        self.mu = mu
-        self.muT = muT
-        self.matrix = matrix
-        self.x = x
-        gamma = 0.5*mu*matrix*muT
-        d = mu*matrix*x - gamma
+    """Коэффициенты дискриминантной функции"""
+    def discriminantFunctionCoefficients(self, matrix, mu1T, mu2T):
+        B = matrix*(mu1T - mu2T)
+        return B
+
+    """Дискриминантная функция"""
+    @staticmethod
+    def discriminantFunction(coefficients, groupVector):
+        d = groupVector[0]*coefficients[0] + groupVector[1]*coefficients[1]
         return d
 
-    def evaluate(self):
-        group1 = self.generateGroup(500)
-        group2 = self.generateGroup(500)
-        mu1 = self.generateMeanVector(1, 1)
-        mu2 = self.generateMeanVector(8, 8)
-        mu1T = self.transposeMeanVector(mu1)
-        mu2T = self.transposeMeanVector(mu2)
-        cholCov = self.calculateInvertibleMatrix(self.cholCovariance)
-        data1 = group1*cholCov + mu1
-        data2 = group2*cholCov + mu2
-        a1 = self.getVector(data1, 0)
-        a2 = self.getVector(data1, 100)
-        dA1 = self.discriminantFunction(mu1, mu1T, self.covMatrix, a1)
-        dB1 = self.discriminantFunction(mu2, mu2T, self.covMatrix, a2)
-        A = (mu1[0].tolist()[0][0] + mu2[0].tolist()[0][0])/2
-        x = [mu1[0].tolist()[0][0]+A, dA1]
-        y = [mu2[0].tolist()[0][0]+A, dB1]
-        i = 0
-        while i < len(data1):
-            plt.plot(data1[i].tolist()[0][0], data1[i].tolist()[0][1], 'go', ms = 3)
-            plt.plot(data2[i].tolist()[0][0], data2[i].tolist()[0][1], 'r^', ms = 6)
-            i += 1
 
-        plt.plot(x, y, 'ro')
+    def evaluate(self):
+        normalGroup1 = self.generateGroup(500)
+        normalGroup2 = self.generateGroup(500)
+        group1 = self.transformGroup(normalGroup1, mu=np.transpose(self.mu1))
+        group2 = self.transformGroup(normalGroup2, mu=np.transpose(self.mu2))
+        vector1 = self.getVector(group1, 5)
+        vector2 = self.getVector(group2, 5)
+        B = self.discriminantFunctionCoefficients(self.cholCovariance, mu1T=np.transpose(self.mu1), mu2T=np.transpose(self.mu2))
+        d_1 = self.discriminantFunction(B, vector1)
+        d_2 = self.discriminantFunction(B, vector2)
+        equidistantBoundary = (d_1 + d_2)/2
+        x11 = 1
+        x12 = (equidistantBoundary - B[0].tolist()[0][0]*x11)/B[1].tolist()[0][0]
+        x21 = 10
+        x22 = (equidistantBoundary - B[0].tolist()[0][0]*x21)/B[1].tolist()[0][0]
+        x, y = [x11, x12], [x21, x22]
+
+        for i in range(500):
+            plt.plot(group1[0, i], group1[1, i], 'go', ms = 2)
+            plt.plot(group2[0, i], group2[1, i], 'r^', ms = 6)
+
         plt.plot(x, y, 'k-')
         plt.show()
+
+
 
 
 f = Fisher(500, 500)
